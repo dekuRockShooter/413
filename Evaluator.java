@@ -4,6 +4,11 @@ import java.util.*;
 import java.util.function.BiPredicate;
 
 
+interface Strategy {
+    boolean execute(Operator opr);
+}
+
+
 public class Evaluator {
     private Stack<Operand> opdStack;
     private Stack<Operator> oprStack;
@@ -28,7 +33,7 @@ public class Evaluator {
         // of the usual operators
         // When is good time to add “!” operator?
         oprStack.push(Operator.operatorMap.get("#"));
-        String delimiters = "+-*/#!() ";
+        String delimiters = "+-*/^#!() ";
         // the 3rd arg is true to indicate to use the delimiters as token
         // but we'll filter out spaces
         StringTokenizer st = new StringTokenizer(expr,delimiters,true);
@@ -56,34 +61,34 @@ public class Evaluator {
                     continue;
                 }
                 Operator oldOpr = oprStack.peek();
-                while ((oprStack.peek().priority() >= newOpr.priority()) &&
-                      (oldOpr != Operator.operatorMap.get("("))) {
-                    // note that when we eval the expression 1 - 2 we will
-                    // push the 1 then the 2 and then do the subtraction operation
-                    // This means that the first number to be popped is the
-                    // second operand, not the first operand - see the following code
-                    oldOpr = ((Operator)oprStack.pop());
-                    Operand op2 = (Operand)opdStack.pop();
-                    Operand op1 = (Operand)opdStack.pop();
-                    opdStack.push(oldOpr.execute(op1,op2));
+                if (oldOpr == Operator.operatorMap.get("^")){
+                    evalHelper2((Operator opr) -> {
+                         return ((oprStack.peek().priority() > newOpr.priority()) &&
+                                 (opr != Operator.operatorMap.get("(")));
+                    });
+                }
+                else {
+                    evalHelper2((Operator opr) -> {
+                         return ((oprStack.peek().priority() >= newOpr.priority()) &&
+                                 (opr != Operator.operatorMap.get("(")));
+                    });
                 }
                 oprStack.push(newOpr);
             }
-            // Control gets here when we've picked up all of the tokens; you must add
-            // code to complete the evaluation - consider how the code given here
-            // will evaluate the expression 1+2*3
-            // When we have no more tokens to scan, the operand stack will contain 1 2
-            // and the operator stack will have + * with 2 and * on the top;
-            // In order to complete the evaluation we must empty the stacks (except
-            // the init operator on the operator stack); that is, we should keep
-            // evaluating the operator stack until it only contains the init operator;
-            // Suggestion: create a method that takes an operator as argument and
-            // then executes the while loop; also, move the stacks out of the main
-            // method
         }
         return this.evaluate(oprStack, opdStack);
     }
 
+    //private void evalHelper2(BiPredicate<Operator, Operator> predicate) {
+    private void evalHelper2(Strategy s) {
+        Operator oldOpr = oprStack.peek();
+        while (s.execute(oldOpr)) {
+            oldOpr = ((Operator)oprStack.pop());
+            Operand op2 = (Operand)opdStack.pop();
+            Operand op1 = (Operand)opdStack.pop();
+            opdStack.push(oldOpr.execute(op1,op2));
+        }
+    }
     private void evalHelper(BiPredicate<Operator, Operator> predicate) {
         //Operator oldOpr = oprStack.peek();
         //Operator newOpr = Operator.operatorMap.get(tok);
@@ -113,7 +118,7 @@ public class Evaluator {
 
 
 abstract class Operator {
-    private static final String validOperators = "+-/*()";
+    private static final String validOperators = "+-/*^()";
     private final String operator;
     static final HashMap<String, Operator> operatorMap;
     static {
@@ -122,6 +127,7 @@ abstract class Operator {
         operatorMap.put("-", new SubtractionOperator());
         operatorMap.put("*", new MultiplicationOperator());
         operatorMap.put("/", new DivisionOperator());
+        operatorMap.put("^", new ExponentiationOperator());
         operatorMap.put("#", new EndOperator());
         operatorMap.put("(", new OpenParenthesis());
         operatorMap.put(")", new CloseParenthesis());
@@ -222,6 +228,24 @@ class DivisionOperator extends Operator {
     @Override
     Operand execute(Operand lhs, Operand rhs) {
         return new Operand(lhs.getValue() / rhs.getValue());
+    }
+
+    @Override
+    int priority() { return this.priority; }
+}
+
+
+class ExponentiationOperator extends Operator {
+    final int priority;
+
+    ExponentiationOperator() {
+        super("^");
+        this.priority = 4;
+    }
+
+    @Override
+    Operand execute(Operand lhs, Operand rhs) {
+        return new Operand((int)(Math.pow(lhs.getValue(), rhs.getValue())));
     }
 
     @Override
