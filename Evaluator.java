@@ -7,19 +7,10 @@ import java.util.function.BiPredicate;
 public class Evaluator {
     private Stack<Operand> opdStack;
     private Stack<Operator> oprStack;
-    private HashMap<String, Operator> operatorMap;
 
     public Evaluator() {
         opdStack = new Stack<Operand>();
         oprStack = new Stack<Operator>();
-        operatorMap = new HashMap<String, Operator>();
-        operatorMap.put("+", new AdditionOperator());
-        operatorMap.put("-", new SubtractionOperator());
-        operatorMap.put("*", new MultiplicationOperator());
-        operatorMap.put("/", new DivisionOperator());
-        operatorMap.put("#", new EndOperator());
-        operatorMap.put("(", new OpenParenthesis());
-        operatorMap.put(")", new CloseParenthesis());
     }
 
     /**
@@ -36,7 +27,7 @@ public class Evaluator {
         // the usual operators - "+-*/" - should be less than the priority
         // of the usual operators
         // When is good time to add “!” operator?
-        oprStack.push(operatorMap.get("#"));
+        oprStack.push(Operator.operatorMap.get("#"));
         String delimiters = "+-*/#!() ";
         // the 3rd arg is true to indicate to use the delimiters as token
         // but we'll filter out spaces
@@ -53,9 +44,9 @@ public class Evaluator {
                     System.out.println("*****invalid token******");
                     System.exit(1);
                 }
-                Operator newOpr = this.operatorMap.get(tok);
-                if (newOpr == this.operatorMap.get(")")) {
-                    while (oprStack.peek() != this.operatorMap.get("(")) {
+                Operator newOpr = Operator.operatorMap.get(tok);
+                if (newOpr == Operator.operatorMap.get(")")) {
+                    while (oprStack.peek() != Operator.operatorMap.get("(")) {
                         Operator oldOpr = oprStack.pop();
                         Operand rhs = (Operand)opdStack.pop();
                         Operand lhs = (Operand)opdStack.pop();
@@ -66,7 +57,7 @@ public class Evaluator {
                 }
                 Operator oldOpr = oprStack.peek();
                 while ((oprStack.peek().priority() >= newOpr.priority()) &&
-                      (oldOpr != this.operatorMap.get("("))) {
+                      (oldOpr != Operator.operatorMap.get("("))) {
                     // note that when we eval the expression 1 - 2 we will
                     // push the 1 then the 2 and then do the subtraction operation
                     // This means that the first number to be popped is the
@@ -95,7 +86,7 @@ public class Evaluator {
 
     private void evalHelper(BiPredicate<Operator, Operator> predicate) {
         //Operator oldOpr = oprStack.peek();
-        //Operator newOpr = this.operatorMap.get(tok);
+        //Operator newOpr = Operator.operatorMap.get(tok);
         //while (predicate()) {
             //oldOpr = ((Operator)oprStack.pop());
             //Operand op2 = (Operand)opdStack.pop();
@@ -109,7 +100,7 @@ public class Evaluator {
         Operand rhs = null;
         Operand res = null;
         Operator opr = oprStack.pop();
-        while (opr != this.operatorMap.get("#")) {
+        while (opr != Operator.operatorMap.get("#")) {
             rhs = opdStack.pop();
             lhs = opdStack.pop();
             res = opr.execute(lhs, rhs);
@@ -124,6 +115,17 @@ public class Evaluator {
 abstract class Operator {
     private static final String validOperators = "+-/*()";
     private final String operator;
+    static final HashMap<String, Operator> operatorMap;
+    static {
+        operatorMap = new HashMap<String, Operator>();
+        operatorMap.put("+", new AdditionOperator());
+        operatorMap.put("-", new SubtractionOperator());
+        operatorMap.put("*", new MultiplicationOperator());
+        operatorMap.put("/", new DivisionOperator());
+        operatorMap.put("#", new EndOperator());
+        operatorMap.put("(", new OpenParenthesis());
+        operatorMap.put(")", new CloseParenthesis());
+    }
 
     /**
      * Creates a new arithmetic operator.
