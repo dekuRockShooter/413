@@ -4,12 +4,12 @@ import java.util.*;
 import java.util.function.BiPredicate;
 
 
-interface Strategy {
-    boolean execute(Operator opr);
-}
-
-
 public class Evaluator {
+    interface Strategy {
+        boolean execute(Operator opr);
+    }
+
+
     private Stack<Operand> opdStack;
     private Stack<Operator> oprStack;
 
@@ -27,11 +27,6 @@ public class Evaluator {
      */
     public int eval(String expr) {
         String tok;
-        // init stack - necessary with operator priority schema;
-        // the priority of any operator in the operator stack other then
-        // the usual operators - "+-*/" - should be less than the priority
-        // of the usual operators
-        // When is good time to add “!” operator?
         oprStack.push(Operator.operatorMap.get("#"));
         String delimiters = "+-*/^#!() ";
         // the 3rd arg is true to indicate to use the delimiters as token
@@ -50,24 +45,22 @@ public class Evaluator {
                     System.exit(1);
                 }
                 Operator newOpr = Operator.operatorMap.get(tok);
+                // evaluate everything in the parentheses.
                 if (newOpr == Operator.operatorMap.get(")")) {
-                    while (oprStack.peek() != Operator.operatorMap.get("(")) {
-                        Operator oldOpr = oprStack.pop();
-                        Operand rhs = (Operand)opdStack.pop();
-                        Operand lhs = (Operand)opdStack.pop();
-                        opdStack.push(oldOpr.execute(lhs, rhs));
-                    }
+                    evalHelper2((Operator opr) -> {
+                        return (oprStack.peek() != Operator.operatorMap.get("("));
+                    });
                     oprStack.pop(); // pop the open parenthesis.
                     continue;
                 }
                 Operator oldOpr = oprStack.peek();
-                if (oldOpr == Operator.operatorMap.get("^")){
+                if (oldOpr.ASSOCIATIVITY == Operator.Associativity.RIGHT) {
                     evalHelper2((Operator opr) -> {
                          return ((oprStack.peek().priority() > newOpr.priority()) &&
                                  (opr != Operator.operatorMap.get("(")));
                     });
                 }
-                else {
+                else if (oldOpr.ASSOCIATIVITY == Operator.Associativity.LEFT) {
                     evalHelper2((Operator opr) -> {
                          return ((oprStack.peek().priority() >= newOpr.priority()) &&
                                  (opr != Operator.operatorMap.get("(")));
@@ -79,7 +72,6 @@ public class Evaluator {
         return this.evaluate(oprStack, opdStack);
     }
 
-    //private void evalHelper2(BiPredicate<Operator, Operator> predicate) {
     private void evalHelper2(Strategy s) {
         Operator oldOpr = oprStack.peek();
         while (s.execute(oldOpr)) {
@@ -88,16 +80,6 @@ public class Evaluator {
             Operand op1 = (Operand)opdStack.pop();
             opdStack.push(oldOpr.execute(op1,op2));
         }
-    }
-    private void evalHelper(BiPredicate<Operator, Operator> predicate) {
-        //Operator oldOpr = oprStack.peek();
-        //Operator newOpr = Operator.operatorMap.get(tok);
-        //while (predicate()) {
-            //oldOpr = ((Operator)oprStack.pop());
-            //Operand op2 = (Operand)opdStack.pop();
-            //Operand op1 = (Operand)opdStack.pop();
-            //opdStack.push(oldOpr.execute(op1,op2));
-        //}
     }
 
     private int evaluate(Stack<Operator> oprStack, Stack<Operand> opdStack) {
@@ -118,8 +100,10 @@ public class Evaluator {
 
 
 abstract class Operator {
+    public static enum Associativity {LEFT, RIGHT};
     private static final String validOperators = "+-/*^()";
     private final String operator;
+    final Associativity ASSOCIATIVITY;
     static final HashMap<String, Operator> operatorMap;
     static {
         operatorMap = new HashMap<String, Operator>();
@@ -138,15 +122,15 @@ abstract class Operator {
      *
      * @param operator a string that denotes the operator (one of +, -, *, /)
      * */
-    Operator(String operator) {
+    Operator(String operator, Associativity associativity) {
         this.operator = operator;
+        this.ASSOCIATIVITY = associativity;
     }
 
-    // TODO: abstract
     abstract int priority();
 
-    // TODO: abstract
     abstract Operand execute(Operand lhs, Operand rhs);
+
 
     /**
      * Checks whether a string is a valid operator.  A valid operator is any
@@ -167,7 +151,7 @@ class AdditionOperator extends Operator {
     final int priority;
 
     AdditionOperator() {
-        super("+");
+        super("+", Operator.Associativity.RIGHT);
         this.priority = 2;
     }
 
@@ -185,7 +169,7 @@ class SubtractionOperator extends Operator {
     final int priority;
 
     SubtractionOperator() {
-        super("-");
+        super("-", Operator.Associativity.RIGHT);
         this.priority = 2;
     }
 
@@ -203,7 +187,7 @@ class MultiplicationOperator extends Operator {
     final int priority;
 
     MultiplicationOperator() {
-        super("*");
+        super("*", Operator.Associativity.RIGHT);
         this.priority = 3;
     }
 
@@ -221,7 +205,7 @@ class DivisionOperator extends Operator {
     final int priority;
 
     DivisionOperator() {
-        super("/");
+        super("/", Operator.Associativity.RIGHT);
         this.priority = 3;
     }
 
@@ -239,7 +223,7 @@ class ExponentiationOperator extends Operator {
     final int priority;
 
     ExponentiationOperator() {
-        super("^");
+        super("^", Operator.Associativity.RIGHT);
         this.priority = 4;
     }
 
@@ -257,7 +241,7 @@ class EndOperator extends Operator {
     final int priority;
 
     EndOperator() {
-        super("#");
+        super("#", Operator.Associativity.LEFT);
         this.priority = 0;
     }
 
@@ -275,7 +259,7 @@ class OpenParenthesis extends Operator {
     final int priority;
 
     OpenParenthesis() {
-        super("(");
+        super("(", Operator.Associativity.LEFT);
         this.priority = 5;
     }
 
@@ -293,7 +277,7 @@ class CloseParenthesis extends Operator {
     final int priority;
 
     CloseParenthesis() {
-        super(")");
+        super(")", Operator.Associativity.LEFT);
         this.priority = 5;
     }
 
