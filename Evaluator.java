@@ -1,16 +1,61 @@
 //package evaluator;
 
 import java.util.*;
-import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 
 
 public class Evaluator {
+    /**
+     * Determines the conditions required to pop the Operator stack.  The
+     * popped Operator is used to evaluate the top two Operands from the 
+     * Operand stack.
+     */
+    private class LeftAssociativeEval implements
+        BiPredicate<Operator, Operator> {
+
+        public boolean test(Operator topOpr, Operator newOpr) {
+            return (topOpr.priority() >= newOpr.priority()) &&
+                   (topOpr != Operator.operatorMap.get("("));
+        }
+    };
+
+    private class RightAssociativeEval implements
+        BiPredicate<Operator, Operator> {
+
+        public boolean test(Operator topOpr, Operator newOpr) {
+            return (topOpr.priority() > newOpr.priority()) &&
+                   (topOpr != Operator.operatorMap.get("("));
+        }
+    };
+
+    private class InsideParenEval implements BiPredicate<Operator, Operator> {
+
+        public boolean test(Operator topOpr, Operator newOpr) {
+            return topOpr != Operator.operatorMap.get("(");
+        }
+    };
+
+    private class AllEval implements BiPredicate<Operator, Operator> {
+
+        public boolean test(Operator topOpr, Operator newOpr) {
+            return topOpr != Operator.operatorMap.get("#");
+        }
+    };
+
     private Stack<Operand> opdStack;
     private Stack<Operator> oprStack;
+    private BiPredicate<Operator, Operator> rightAssociativeEval;
+    private BiPredicate<Operator, Operator> leftAssociativeEval;
+    private BiPredicate<Operator, Operator> insideParenEval;
+    private BiPredicate<Operator, Operator> allEval;
 
     public Evaluator() {
         opdStack = new Stack<Operand>();
         oprStack = new Stack<Operator>();
+        rightAssociativeEval = new RightAssociativeEval();
+        leftAssociativeEval = new LeftAssociativeEval();
+        insideParenEval = new InsideParenEval();
+        allEval = new AllEval();
     }
 
     /**
@@ -26,6 +71,8 @@ public class Evaluator {
         oprStack.push(Operator.operatorMap.get("#"));
         String delimiters = "+-*/^#!() ";
         String tok;
+        Operator newOpr = null;
+        Operator oldOpr = null;
         // the 3rd arg is true to indicate to use the delimiters as token
         // but we'll filter out spaces
         StringTokenizer st = new StringTokenizer(expr,delimiters,true);
@@ -41,37 +88,25 @@ public class Evaluator {
                     System.out.println("*****invalid token******");
                     System.exit(1);
                 }
-                Operator newOpr = Operator.operatorMap.get(tok);
+                newOpr = Operator.operatorMap.get(tok);
                 // Evaluate everything in the parentheses.
                 if (newOpr == Operator.operatorMap.get(")")) {
-                    this.popOperator((Operator opr) -> {
-                        return (oprStack.peek() != Operator.operatorMap.get("("));
-                    });
+                    this.popOperator(this.insideParenEval, newOpr);
                     oprStack.pop(); // Pop the open parenthesis.
                     continue;
                 }
-                Operator oldOpr = oprStack.peek();
-                // Set the predicate for right associative operators.
+                oldOpr = oprStack.peek();
                 if (oldOpr.ASSOCIATIVITY == Operator.Associativity.RIGHT) {
-                    this.popOperator((Operator opr) -> {
-                         return ((oprStack.peek().priority() > newOpr.priority()) &&
-                                 (opr != Operator.operatorMap.get("(")));
-                    });
+                    this.popOperator(this.rightAssociativeEval, newOpr);
                 }
-                // Set the predicate for left associative operators.
                 else if (oldOpr.ASSOCIATIVITY == Operator.Associativity.LEFT) {
-                    this.popOperator((Operator opr) -> {
-                         return ((oprStack.peek().priority() >= newOpr.priority()) &&
-                                 (opr != Operator.operatorMap.get("(")));
-                    });
+                    this.popOperator(this.leftAssociativeEval, newOpr);
                 }
                 oprStack.push(newOpr);
             }
         }
         // Evaluate the entire stack.
-        this.popOperator((Operator opr) -> {
-             return opr != Operator.operatorMap.get("#");
-        });
+        this.popOperator(this.allEval, newOpr);
         return opdStack.pop().getValue();
     }
 
@@ -85,19 +120,20 @@ public class Evaluator {
      * @param p a predicate used to determine when to remove and execute an
      *          <code>Operator</code>
      */
-    private void popOperator(Predicate<Operator> p) {
+    private void popOperator(BiPredicate<Operator, Operator> p,
+                             Operator newOpr) {
         Operand lhs = null;
         Operand rhs = null;
         Operand res = null;
         Operator oldOpr = oprStack.peek();
         // while the predicate is true, execute the Operator on the top
         // two Operands.
-        while (p.test(oldOpr)) {
-            oldOpr = oprStack.pop());
+        while (p.test(oldOpr, newOpr)) {
             rhs = opdStack.pop();
             lhs = opdStack.pop();
             res = oldOpr.execute(lhs, rhs);
             opdStack.push(res);
+            oprStack.pop();
             oldOpr = oprStack.peek();
         }
     }
@@ -179,7 +215,7 @@ class AdditionOperator extends Operator {
     final int priority;
 
     AdditionOperator() {
-        super("+", Operator.Associativity.RIGHT);
+        super("+", Operator.Associativity.LEFT);
         this.priority = 2;
     }
 
@@ -197,7 +233,7 @@ class SubtractionOperator extends Operator {
     final int priority;
 
     SubtractionOperator() {
-        super("-", Operator.Associativity.RIGHT);
+        super("-", Operator.Associativity.LEFT);
         this.priority = 2;
     }
 
@@ -215,7 +251,7 @@ class MultiplicationOperator extends Operator {
     final int priority;
 
     MultiplicationOperator() {
-        super("*", Operator.Associativity.RIGHT);
+        super("*", Operator.Associativity.LEFT);
         this.priority = 3;
     }
 
@@ -233,7 +269,7 @@ class DivisionOperator extends Operator {
     final int priority;
 
     DivisionOperator() {
-        super("/", Operator.Associativity.RIGHT);
+        super("/", Operator.Associativity.LEFT);
         this.priority = 3;
     }
 
