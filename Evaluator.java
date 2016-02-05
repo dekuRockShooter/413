@@ -1,15 +1,10 @@
 //package evaluator;
 
 import java.util.*;
-import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 
 public class Evaluator {
-    interface Strategy {
-        boolean execute(Operator opr);
-    }
-
-
     private Stack<Operand> opdStack;
     private Stack<Operator> oprStack;
 
@@ -19,16 +14,18 @@ public class Evaluator {
     }
 
     /**
-     * Computes an arithmetic expression.
+     * Computes a mathematical expression.
      *
      * @param expr the arithmetic expression to evaluate, using infix notation
-     *             and consisting of arithmetic operators and integers.
+     *             and consisting of the operators +, -, *, /, and ^, and
+     *             integers.
      * @return the integer that the expression evaluates to.
      */
     public int eval(String expr) {
-        String tok;
+        // Mark the bottom of the stack.
         oprStack.push(Operator.operatorMap.get("#"));
         String delimiters = "+-*/^#!() ";
+        String tok;
         // the 3rd arg is true to indicate to use the delimiters as token
         // but we'll filter out spaces
         StringTokenizer st = new StringTokenizer(expr,delimiters,true);
@@ -45,23 +42,25 @@ public class Evaluator {
                     System.exit(1);
                 }
                 Operator newOpr = Operator.operatorMap.get(tok);
-                // evaluate everything in the parentheses.
+                // Evaluate everything in the parentheses.
                 if (newOpr == Operator.operatorMap.get(")")) {
-                    evalHelper2((Operator opr) -> {
+                    this.popOperator((Operator opr) -> {
                         return (oprStack.peek() != Operator.operatorMap.get("("));
                     });
-                    oprStack.pop(); // pop the open parenthesis.
+                    oprStack.pop(); // Pop the open parenthesis.
                     continue;
                 }
                 Operator oldOpr = oprStack.peek();
+                // Set the predicate for right associative operators.
                 if (oldOpr.ASSOCIATIVITY == Operator.Associativity.RIGHT) {
-                    evalHelper2((Operator opr) -> {
+                    this.popOperator((Operator opr) -> {
                          return ((oprStack.peek().priority() > newOpr.priority()) &&
                                  (opr != Operator.operatorMap.get("(")));
                     });
                 }
+                // Set the predicate for left associative operators.
                 else if (oldOpr.ASSOCIATIVITY == Operator.Associativity.LEFT) {
-                    evalHelper2((Operator opr) -> {
+                    this.popOperator((Operator opr) -> {
                          return ((oprStack.peek().priority() >= newOpr.priority()) &&
                                  (opr != Operator.operatorMap.get("(")));
                     });
@@ -69,41 +68,62 @@ public class Evaluator {
                 oprStack.push(newOpr);
             }
         }
-        return this.evaluate(oprStack, opdStack);
+        // Evaluate the entire stack.
+        this.popOperator((Operator opr) -> {
+             return opr != Operator.operatorMap.get("#");
+        });
+        return opdStack.pop().getValue();
     }
 
-    private void evalHelper2(Strategy s) {
-        Operator oldOpr = oprStack.peek();
-        while (s.execute(oldOpr)) {
-            oldOpr = ((Operator)oprStack.pop());
-            Operand op2 = (Operand)opdStack.pop();
-            Operand op1 = (Operand)opdStack.pop();
-            opdStack.push(oldOpr.execute(op1,op2));
-        }
-    }
-
-    private int evaluate(Stack<Operator> oprStack, Stack<Operand> opdStack) {
+    /**
+     * Executes an <code>Operator</code> until a condition is met.
+     *
+     * An <code>Operator</code> is popped from the stack and is used to
+     * evaluate <code>Operand</code>s.  This continues until the given
+     * predicate evaluates to <code>false</code>.
+     *
+     * @param p a predicate used to determine when to remove and execute an
+     *          <code>Operator</code>
+     */
+    private void popOperator(Predicate<Operator> p) {
         Operand lhs = null;
         Operand rhs = null;
         Operand res = null;
-        Operator opr = oprStack.pop();
-        while (opr != Operator.operatorMap.get("#")) {
+        Operator oldOpr = oprStack.peek();
+        // while the predicate is true, execute the Operator on the top
+        // two Operands.
+        while (p.test(oldOpr)) {
+            oldOpr = oprStack.pop());
             rhs = opdStack.pop();
             lhs = opdStack.pop();
-            res = opr.execute(lhs, rhs);
+            res = oldOpr.execute(lhs, rhs);
             opdStack.push(res);
-            opr = oprStack.pop();
+            oldOpr = oprStack.peek();
         }
-        return opdStack.pop().getValue();
     }
 }
 
 
+/**
+ * A basic mathematical binary operator.
+ */
 abstract class Operator {
+    /**
+     * The associativity of an <code>Operator</code>
+     */
     public static enum Associativity {LEFT, RIGHT};
     private static final String validOperators = "+-/*^()";
     private final String operator;
+
+    /**
+     * The associativity of this <code>Operator</code>
+     */
     final Associativity ASSOCIATIVITY;
+
+    /**
+     * A map from an operator's string to an <code>Operator</code> object.
+     * Use this map to access Operators.
+     */
     static final HashMap<String, Operator> operatorMap;
     static {
         operatorMap = new HashMap<String, Operator>();
@@ -120,21 +140,29 @@ abstract class Operator {
     /**
      * Creates a new arithmetic operator.
      *
-     * @param operator a string that denotes the operator (one of +, -, *, /)
+     * @param operator a string that denotes the operator
+     * @param associativity the associativity of the operator
+     * @see Operator#Associativity
      * */
     Operator(String operator, Associativity associativity) {
         this.operator = operator;
         this.ASSOCIATIVITY = associativity;
     }
 
+    /**
+     * @return the priority of this <code>Operator</code>
+     * */
     abstract int priority();
 
+    /**
+     * Executes this <code>Operator</code> on the given <code>Operands</code>
+     *
+     * @return the <code>Operand</code> that is the result of the execution
+     * */
     abstract Operand execute(Operand lhs, Operand rhs);
 
-
     /**
-     * Checks whether a string is a valid operator.  A valid operator is any
-     * arithmetic operator (+, -, *, /).
+     * Checks whether a string is a valid operator.
      *
      * @param operator the string to validate.
      * @return <code>true</code> if the given string is a valid arithmetic
