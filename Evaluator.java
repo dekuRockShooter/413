@@ -14,8 +14,7 @@ public class Evaluator {
         BiPredicate<Operator, Operator> {
 
         public boolean test(Operator topOpr, Operator newOpr) {
-            return (topOpr.priority() >= newOpr.priority()) &&
-                   (topOpr != Operator.operatorMap.get("("));
+            return (topOpr.priority() >= newOpr.priority());
         }
     };
 
@@ -23,8 +22,7 @@ public class Evaluator {
         BiPredicate<Operator, Operator> {
 
         public boolean test(Operator topOpr, Operator newOpr) {
-            return (topOpr.priority() > newOpr.priority()) &&
-                   (topOpr != Operator.operatorMap.get("("));
+            return (topOpr.priority() > newOpr.priority());
         }
     };
 
@@ -126,6 +124,12 @@ public class Evaluator {
         Operand rhs = null;
         Operand res = null;
         Operator oldOpr = oprStack.peek();
+        if (newOpr == Operator.operatorMap.get("(")){
+            return;
+        }
+        // The open parenthesis acts as the bottom of the stack.  It is
+        // essentially the beginning of a new expression.
+        Operator.operatorMap.get("(").setPriority(0);
         // while the predicate is true, execute the Operator on the top
         // two Operands.
         while (p.test(oldOpr, newOpr)) {
@@ -136,6 +140,7 @@ public class Evaluator {
             oprStack.pop();
             oldOpr = oprStack.peek();
         }
+        Operator.operatorMap.get("(").setPriority(10);
     }
 }
 
@@ -189,6 +194,8 @@ abstract class Operator {
      * @return the priority of this <code>Operator</code>
      * */
     abstract int priority();
+
+    void setPriority(int priority) {}
 
     /**
      * Executes this <code>Operator</code> on the given <code>Operands</code>
@@ -320,11 +327,11 @@ class EndOperator extends Operator {
 
 
 class OpenParenthesis extends Operator {
-    final int priority;
+    int priority;
 
     OpenParenthesis() {
         super("(", Operator.Associativity.LEFT);
-        this.priority = 5;
+        this.priority = 10;
     }
 
     @Override
@@ -334,6 +341,11 @@ class OpenParenthesis extends Operator {
 
     @Override
     int priority() { return this.priority; }
+
+    @Override
+    void setPriority(int priority) {
+        this.priority = priority;
+    }
 }
 
 
@@ -342,7 +354,7 @@ class CloseParenthesis extends Operator {
 
     CloseParenthesis() {
         super(")", Operator.Associativity.LEFT);
-        this.priority = 5;
+        this.priority = 10;
     }
 
     @Override
