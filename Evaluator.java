@@ -27,25 +27,27 @@ public class Evaluator {
     };
 
     private class InsideParenEval implements BiPredicate<Operator, Operator> {
+        private final Operator openParen = Operator.operatorMap.get("(");
 
         public boolean test(Operator topOpr, Operator newOpr) {
-            return topOpr != Operator.operatorMap.get("(");
+            return topOpr != openParen;
         }
     };
 
     private class AllEval implements BiPredicate<Operator, Operator> {
+        private final Operator hash = Operator.operatorMap.get("#");
 
         public boolean test(Operator topOpr, Operator newOpr) {
-            return topOpr != Operator.operatorMap.get("#");
+            return topOpr != hash;
         }
     };
 
-    private Stack<Operand> opdStack;
-    private Stack<Operator> oprStack;
-    private BiPredicate<Operator, Operator> rightAssociativeEval;
-    private BiPredicate<Operator, Operator> leftAssociativeEval;
-    private BiPredicate<Operator, Operator> insideParenEval;
-    private BiPredicate<Operator, Operator> allEval;
+    private final Stack<Operand> opdStack;
+    private final Stack<Operator> oprStack;
+    private final BiPredicate<Operator, Operator> rightAssociativeEval;
+    private final BiPredicate<Operator, Operator> leftAssociativeEval;
+    private final BiPredicate<Operator, Operator> insideParenEval;
+    private final BiPredicate<Operator, Operator> allEval;
 
     public Evaluator() {
         opdStack = new Stack<Operand>();
@@ -59,7 +61,7 @@ public class Evaluator {
     /**
      * Computes a mathematical expression.
      *
-     * @param expr the arithmetic expression to evaluate, using infix notation
+     * @param expr the mathematical expression to evaluate, using infix notation
      *             and consisting of the operators +, -, *, /, and ^, and
      *             integers.
      * @return the integer that the expression evaluates to.
@@ -368,10 +370,10 @@ class CloseParenthesis extends Operator {
 
 
 /**
- * An operand in an arithmetic expression.
+ * An operand in a mathematical expression.
  * <p>
- * The operand can be any integer that can be operated on using the arithmetic
- * operators (+, -, *, /).
+ * The operand can be any integer that can be operated on using the operators
+ * +, -, *, /, and ^.
  * */
 class Operand {
     private int value;
