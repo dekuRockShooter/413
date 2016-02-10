@@ -26,19 +26,20 @@ public class Evaluator {
         }
     };
 
-    private class InsideParenEval implements BiPredicate<Operator, Operator> {
-        private final Operator openParen = Operator.operatorMap.get("(");
+    private class AllEval implements BiPredicate<Operator, Operator> {
 
         public boolean test(Operator topOpr, Operator newOpr) {
-            return topOpr != openParen;
+            return topOpr.priority() > 0;
         }
     };
 
-    private class AllEval implements BiPredicate<Operator, Operator> {
-        private final Operator hash = Operator.operatorMap.get("#");
+    private class GroupEval implements BiPredicate<Operator, Operator> {
+        Operator startOpr = null;
 
         public boolean test(Operator topOpr, Operator newOpr) {
-            return topOpr != hash;
+            if (this.startOpr != newOpr)
+                this.startOpr = newOpr;
+            return topOpr != this.startOpr;
         }
     };
 
@@ -46,16 +47,20 @@ public class Evaluator {
     private final Stack<Operator> oprStack;
     private final BiPredicate<Operator, Operator> rightAssociativeEval;
     private final BiPredicate<Operator, Operator> leftAssociativeEval;
-    private final BiPredicate<Operator, Operator> insideParenEval;
     private final BiPredicate<Operator, Operator> allEval;
+    private final BiPredicate<Operator, Operator> groupEval;
+    private final HashMap<Operator, Operator> groupOprMap;
 
     public Evaluator() {
         opdStack = new Stack<Operand>();
         oprStack = new Stack<Operator>();
         rightAssociativeEval = new RightAssociativeEval();
         leftAssociativeEval = new LeftAssociativeEval();
-        insideParenEval = new InsideParenEval();
         allEval = new AllEval();
+        groupEval = new GroupEval();
+        groupOprMap = new HashMap<>();
+        groupOprMap.put(Operator.operatorMap.get(")"), Operator.operatorMap.get("("));
+        groupOprMap.put(Operator.operatorMap.get("!"), Operator.operatorMap.get("("));
     }
 
     /**
@@ -89,9 +94,8 @@ public class Evaluator {
                     System.exit(1);
                 }
                 newOpr = Operator.operatorMap.get(tok);
-                // Evaluate everything in the parentheses.
-                if (newOpr == Operator.operatorMap.get(")")) {
-                    this.popOperator(this.insideParenEval, newOpr);
+                if (this.groupOprMap.containsKey(newOpr)) {
+                    this.popOperator(this.groupEval, this.groupOprMap.get(newOpr));
                     oprStack.pop(); // Pop the open parenthesis.
                     continue;
                 }
@@ -126,14 +130,16 @@ public class Evaluator {
         Operand rhs = null;
         Operand res = null;
         Operator oldOpr = oprStack.peek();
-        if (newOpr == Operator.operatorMap.get("(")){
-            return;
-        }
         // The open parenthesis acts as the bottom of the stack.  It is
         // essentially the beginning of a new expression.
-        Operator.operatorMap.get("(").setPriority(0);
+        if (newOpr == Operator.operatorMap.get("(")){
+            newOpr.setOutPriority(); // priority when out
+        }
+        else
+            Operator.operatorMap.get("(").setInPriority(); // priority when in
         // while the predicate is true, execute the Operator on the top
         // two Operands.
+        // for r in open, close
         while (p.test(oldOpr, newOpr)) {
             rhs = opdStack.pop();
             lhs = opdStack.pop();
@@ -142,7 +148,7 @@ public class Evaluator {
             oprStack.pop();
             oldOpr = oprStack.peek();
         }
-        Operator.operatorMap.get("(").setPriority(10);
+        Operator.operatorMap.get("(").setOutPriority(); // priority when out
     }
 }
 
@@ -197,7 +203,11 @@ abstract class Operator {
      * */
     abstract int priority();
 
-    void setPriority(int priority) {}
+    void setInPriority() {}
+    void setOutPriority() {}
+
+    boolean isTerminal() { return false; }
+    boolean isGroupStart() { return false; }
 
     /**
      * Executes this <code>Operator</code> on the given <code>Operands</code>
@@ -328,11 +338,32 @@ class EndOperator extends Operator {
 }
 
 
+class BegOperator extends Operator {
+    final int priority;
+
+    BegOperator() {
+        super("!", Operator.Associativity.LEFT);
+        this.priority = 8;
+    }
+
+    @Override
+    Operand execute(Operand lhs, Operand rhs) {
+        return new Operand(0);
+    }
+
+    @Override
+    int priority() { return this.priority; }
+
+    @Override
+    boolean isTerminal() { return true; }
+}
+
+
 class OpenParenthesis extends Operator {
     int priority;
 
     OpenParenthesis() {
-        super("(", Operator.Associativity.LEFT);
+        super("(", Operator.Associativity.RIGHT);
         this.priority = 10;
     }
 
@@ -345,9 +376,17 @@ class OpenParenthesis extends Operator {
     int priority() { return this.priority; }
 
     @Override
-    void setPriority(int priority) {
-        this.priority = priority;
+    void setInPriority() {
+        this.priority = 0;
     }
+
+    @Override
+    void setOutPriority() {
+        this.priority = 10;
+    }
+
+    @Override
+    boolean isGroupStart() { return true; }
 }
 
 
