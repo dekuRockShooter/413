@@ -45,6 +45,7 @@ public class Evaluator {
 
     private final Stack<Operand> opdStack;
     private final Stack<Operator> oprStack;
+    private final Stack<Operator> groupStartStack;
     private final BiPredicate<Operator, Operator> rightAssociativeEval;
     private final BiPredicate<Operator, Operator> leftAssociativeEval;
     private final BiPredicate<Operator, Operator> allEval;
@@ -54,13 +55,14 @@ public class Evaluator {
     public Evaluator() {
         opdStack = new Stack<Operand>();
         oprStack = new Stack<Operator>();
+        groupStartStack = new Stack<Operator>();
         rightAssociativeEval = new RightAssociativeEval();
         leftAssociativeEval = new LeftAssociativeEval();
         allEval = new AllEval();
         groupEval = new GroupEval();
         groupOprMap = new HashMap<>();
         groupOprMap.put(Operator.operatorMap.get(")"), Operator.operatorMap.get("("));
-        groupOprMap.put(Operator.operatorMap.get("!"), Operator.operatorMap.get("("));
+        groupOprMap.put(Operator.operatorMap.get("!"), Operator.operatorMap.get("#"));
     }
 
     /**
@@ -74,6 +76,7 @@ public class Evaluator {
     public int eval(String expr) {
         // Mark the bottom of the stack.
         oprStack.push(Operator.operatorMap.get("#"));
+        groupStartStack.push(Operator.operatorMap.get("#"));
         String delimiters = "+-*/^#!() ";
         String tok;
         Operator newOpr = null;
@@ -97,6 +100,7 @@ public class Evaluator {
                 if (this.groupOprMap.containsKey(newOpr)) {
                     this.popOperator(this.groupEval, this.groupOprMap.get(newOpr));
                     oprStack.pop(); // Pop the open parenthesis.
+                    groupStartStack.pop(); // Pop the open parenthesis.
                     continue;
                 }
                 oldOpr = oprStack.peek();
@@ -132,11 +136,12 @@ public class Evaluator {
         Operator oldOpr = oprStack.peek();
         // The open parenthesis acts as the bottom of the stack.  It is
         // essentially the beginning of a new expression.
-        if (newOpr == Operator.operatorMap.get("(")){
+        if (newOpr.isGroupStart()) {
             newOpr.setOutPriority(); // priority when out
+            this.groupStartStack.push(newOpr);
         }
         else
-            Operator.operatorMap.get("(").setInPriority(); // priority when in
+            this.groupStartStack.peek().setInPriority(); 
         // while the predicate is true, execute the Operator on the top
         // two Operands.
         // for r in open, close
@@ -148,7 +153,7 @@ public class Evaluator {
             oprStack.pop();
             oldOpr = oprStack.peek();
         }
-        Operator.operatorMap.get("(").setOutPriority(); // priority when out
+        this.groupStartStack.peek().setOutPriority(); 
     }
 }
 
