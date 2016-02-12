@@ -1,41 +1,79 @@
-//package evaluator;
-
 import java.util.*;
 import java.util.function.BiPredicate;
 
 
+/**
+ * Evaluates simple mathematical expressions.
+ */
 public class Evaluator {
+    /*
+     * The classes that implement BiPredicate determine the conditions
+     * required to pop the Operator stack.  There are several factors that
+     * determine when to pop the stack, for example whether or not the new
+     * operator is left or right associative, or the end of a group (such as
+     * closing parenthesis, brackets, etc.).  Each implementing class defines
+     * these conditions for a specific family of operators.
+     *
+     * All concrete classes must implement the method test, which returns true
+     * if the operator stack should be popped, and false otherwise.  If an
+     * Operator is popped, then two Operands are popped as well, and they are
+     * passed to the popped Operator's execute method.
+     *
+     * BiPredicate concrete classes:
+     *  LeftAssociativeEval
+     *  RightAssociativeEval
+     *  GroupEval
+     */
+
     /**
-     * Determines the conditions required to pop the Operator stack.  The
-     * popped Operator is used to evaluate the top two Operands from the 
-     * Operand stack.
+     * Determines when to pop if an Operator is left associative.
      */
     private class LeftAssociativeEval implements
         BiPredicate<Operator, Operator> {
 
+        /**
+         * @param topOpr the operator at the top of the operator stack
+         * @param newOpr a left associative operator
+         * @return <code>true</code> if newOpr's precedence is less than or
+         *         equal to topOpr's.
+         *         <code>false</code> otherwise.
+         * */
         public boolean test(Operator topOpr, Operator newOpr) {
             return (topOpr.priority() >= newOpr.priority());
         }
     };
 
+    /**
+     * Determines when to pop if an Operator is right associative.
+     */
     private class RightAssociativeEval implements
         BiPredicate<Operator, Operator> {
 
+        /**
+         * @param topOpr the operator at the top of the operator stack
+         * @param newOpr a right associative operator
+         * @return <code>true</code> if newOpr's precedence is less than
+         *         than topOpr's.
+         *         <code>false</code> otherwise.
+         * */
         public boolean test(Operator topOpr, Operator newOpr) {
             return (topOpr.priority() > newOpr.priority());
         }
     };
 
-    private class AllEval implements BiPredicate<Operator, Operator> {
-
-        public boolean test(Operator topOpr, Operator newOpr) {
-            return topOpr.priority() > 0;
-        }
-    };
-
+    /**
+     * Determines when to pop if an Operator is the end of an expression.
+     */
     private class GroupEval implements BiPredicate<Operator, Operator> {
+        // The Operator that marks the beginning of an expression.
         Operator startOpr = null;
 
+        /**
+         * @param topOpr the operator at the top of the operator stack
+         * @param newOpr the operator that marks the start of an expression
+         * @return <code>true</code> if topOpr is not newOpr.
+         *         <code>false</code> otherwise.
+         * */
         public boolean test(Operator topOpr, Operator newOpr) {
             if (this.startOpr != newOpr)
                 this.startOpr = newOpr;
@@ -45,11 +83,23 @@ public class Evaluator {
 
     private final Stack<Operand> opdStack;
     private final Stack<Operator> oprStack;
+    /*
+     * A stack of Operators that denote the start of an expression.  Every time
+     * such an operand is encountered, it is pushed to this stack.  This way,
+     * we keep track of the most recent operand that started an expression so
+     * that * we can make sure that it and the next operand that ends an
+     * expression match (if they don't then something is unbalanced).  This
+     * stack also allows a simple way to change the priority of an operand
+     * that starts an expression.
+     * */
     private final Stack<Operator> groupStartStack;
     private final BiPredicate<Operator, Operator> rightAssociativeEval;
     private final BiPredicate<Operator, Operator> leftAssociativeEval;
-    private final BiPredicate<Operator, Operator> allEval;
     private final BiPredicate<Operator, Operator> groupEval;
+    /*
+     * A map that associates Operators that terminate an expression with those
+     * that start one.  For example, ) -> (, ] -> [, etc.
+     * */
     private final HashMap<Operator, Operator> groupOprMap;
 
     public Evaluator() {
@@ -58,25 +108,26 @@ public class Evaluator {
         groupStartStack = new Stack<Operator>();
         rightAssociativeEval = new RightAssociativeEval();
         leftAssociativeEval = new LeftAssociativeEval();
-        allEval = new AllEval();
         groupEval = new GroupEval();
         groupOprMap = new HashMap<>();
-        groupOprMap.put(Operator.operatorMap.get(")"), Operator.operatorMap.get("("));
-        groupOprMap.put(Operator.operatorMap.get("!"), Operator.operatorMap.get("#"));
+        groupOprMap.put(Operator.operatorMap.get(")"),
+                        Operator.operatorMap.get("("));
+        groupOprMap.put(Operator.operatorMap.get("!"),
+                        Operator.operatorMap.get("#"));
     }
 
     /**
      * Computes a mathematical expression.
      *
      * @param expr the mathematical expression to evaluate, using infix notation
-     *             and consisting of the operators +, -, *, /, and ^, and
-     *             integers.
+     *             consisting of integers and the operators +, -, *, /, and ^.
      * @return the integer that the expression evaluates to.
      */
     public int eval(String expr) {
         // Mark the bottom of the stack.
         oprStack.push(Operator.operatorMap.get("#"));
         groupStartStack.push(Operator.operatorMap.get("#"));
+        expr = expr + "!";
         String delimiters = "+-*/^#!() ";
         String tok;
         Operator newOpr = null;
@@ -84,7 +135,6 @@ public class Evaluator {
         // the 3rd arg is true to indicate to use the delimiters as token
         // but we'll filter out spaces
         StringTokenizer st = new StringTokenizer(expr,delimiters,true);
-        // Convert infix to postfix.
         while (st.hasMoreTokens()) {
             if ( (tok = st.nextToken()).equals(" ")) 
                 continue;
@@ -97,10 +147,16 @@ public class Evaluator {
                     System.exit(1);
                 }
                 newOpr = Operator.operatorMap.get(tok);
+                // The Operator marks the end of an expression, so evaluate
+                // everything until we reach the beginning of the expression.
                 if (this.groupOprMap.containsKey(newOpr)) {
-                    this.popOperator(this.groupEval, this.groupOprMap.get(newOpr));
-                    oprStack.pop(); // Pop the open parenthesis.
-                    groupStartStack.pop(); // Pop the open parenthesis.
+                    // The call to get gets the operand that marks the
+                    // beginning of the expression.
+                    this.popOperator(this.groupEval,
+                                     this.groupOprMap.get(newOpr));
+                    // Don't forget to remove the start-of-expression operand.
+                    oprStack.pop();
+                    groupStartStack.pop();
                     continue;
                 }
                 oldOpr = oprStack.peek();
@@ -113,8 +169,6 @@ public class Evaluator {
                 oprStack.push(newOpr);
             }
         }
-        // Evaluate the entire stack.
-        this.popOperator(this.allEval, newOpr);
         return opdStack.pop().getValue();
     }
 
@@ -134,17 +188,17 @@ public class Evaluator {
         Operand rhs = null;
         Operand res = null;
         Operator oldOpr = oprStack.peek();
-        // The open parenthesis acts as the bottom of the stack.  It is
-        // essentially the beginning of a new expression.
+        // newOpr marks the start of the most recent expression.
         if (newOpr.isGroupStart()) {
-            newOpr.setOutPriority(); // priority when out
+            // Change the priority of the Operand that starts an expression so
+            // that it will be pushed on top of all other operators.
             this.groupStartStack.push(newOpr);
+            newOpr.setOutPriority();
         }
         else
-            this.groupStartStack.peek().setInPriority(); 
-        // while the predicate is true, execute the Operator on the top
-        // two Operands.
-        // for r in open, close
+            // Change the priority of the most recent Operand that starts an
+            // expression so that other operators can be pushed on top of it.
+            this.groupStartStack.peek().setInPriority();
         while (p.test(oldOpr, newOpr)) {
             rhs = opdStack.pop();
             lhs = opdStack.pop();
@@ -153,19 +207,18 @@ public class Evaluator {
             oprStack.pop();
             oldOpr = oprStack.peek();
         }
-        this.groupStartStack.peek().setOutPriority(); 
     }
 }
 
 
 /**
- * A basic mathematical binary operator.
+ * A binary mathematical operator.
  */
 abstract class Operator {
     /**
      * The associativity of an <code>Operator</code>
      */
-    public static enum Associativity {LEFT, RIGHT};
+    static enum Associativity {LEFT, RIGHT};
     private static final String validOperators = "+-/*^()";
     private final String operator;
 
@@ -186,7 +239,8 @@ abstract class Operator {
         operatorMap.put("*", new MultiplicationOperator());
         operatorMap.put("/", new DivisionOperator());
         operatorMap.put("^", new ExponentiationOperator());
-        operatorMap.put("#", new EndOperator());
+        operatorMap.put("#", new BegOperator());
+        operatorMap.put("!", new EndOperator());
         operatorMap.put("(", new OpenParenthesis());
         operatorMap.put(")", new CloseParenthesis());
     }
@@ -208,10 +262,23 @@ abstract class Operator {
      * */
     abstract int priority();
 
+    /**
+     * Changes the priority of this <code>Operator</code> when it is in the
+     * Operator stack.
+     * */
     void setInPriority() {}
+
+    /**
+     * Changes the priority of this <code>Operator</code> when it is not in
+     * the Operator stack.
+     * */
     void setOutPriority() {}
 
-    boolean isTerminal() { return false; }
+    /**
+     * @return <code>true</code> if this <code>Operand</code> denotes the
+     *         start of an expression.
+     *         <code>false</code> otherwise.
+     * */
     boolean isGroupStart() { return false; }
 
     /**
@@ -230,7 +297,7 @@ abstract class Operator {
      *         <code>false</code> otherwise.
      * */
     static boolean check(String operator) {
-        return Operator.validOperators.contains(operator);
+        return Operator.operatorMap.containsKey(operator);
     }
 }
 
@@ -325,10 +392,13 @@ class ExponentiationOperator extends Operator {
 }
 
 
-class EndOperator extends Operator {
+/**
+ * Represents the beginning of an expression.
+ */
+class BegOperator extends Operator {
     final int priority;
 
-    EndOperator() {
+    BegOperator() {
         super("#", Operator.Associativity.LEFT);
         this.priority = 0;
     }
@@ -343,10 +413,13 @@ class EndOperator extends Operator {
 }
 
 
-class BegOperator extends Operator {
+/**
+ * Represents the end of an expression.
+ */
+class EndOperator extends Operator {
     final int priority;
 
-    BegOperator() {
+    EndOperator() {
         super("!", Operator.Associativity.LEFT);
         this.priority = 8;
     }
@@ -358,12 +431,12 @@ class BegOperator extends Operator {
 
     @Override
     int priority() { return this.priority; }
-
-    @Override
-    boolean isTerminal() { return true; }
 }
 
 
+/**
+ * Represents the beginning of a sub-expression.
+ */
 class OpenParenthesis extends Operator {
     int priority;
 
@@ -395,6 +468,9 @@ class OpenParenthesis extends Operator {
 }
 
 
+/**
+ * Represents the end of a sub-expression.
+ */
 class CloseParenthesis extends Operator {
     final int priority;
 
@@ -414,27 +490,24 @@ class CloseParenthesis extends Operator {
 
 
 /**
- * An operand in a mathematical expression.
- * <p>
- * The operand can be any integer that can be operated on using the operators
- * +, -, *, /, and ^.
+ * An integer.
  * */
 class Operand {
     private int value;
 
     /**
-     * Creates an operand from a <code>String</code>.
+     * Creates an <code>Operand</code> from a <code>String</code>.
      *
      * @param operand a string representation of an integer
      * */
-    Operand(String operand) { this.value = Integer.parseInt(operand); }
+    Operand(String operand) {this.value = Integer.parseInt(operand);}
 
     /**
-     * Creates an operand from an <code>int</code>.
+     * Creates an <code>Operand</code> from an <code>int</code>.
      *
-     * @param operand the integer that is this Operand's value
+     * @param operand the integer to be this Operand's value
      * */
-    Operand(int operand) { this.value = operand; }
+    Operand(int operand) {this.value = operand;}
 
     /**
      * Returns the value of this operand.
@@ -445,7 +518,7 @@ class Operand {
 
     /**
      * Checks whether a string is a valid operand.  A valid operand is any
-     * integer.  Thus, the string is valid if it represents an integer.
+     * integer.
      *
      * @param operand the string to validate.
      * @return <code>true</code> if the given string represents an integer.
