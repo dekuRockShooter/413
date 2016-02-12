@@ -1,0 +1,110 @@
+1
+Calculator Project
+
+CSC 413 Spring 2016 Professor Yoon
+
+Developer's Guide
+
+February 13, 2016
+
+David Rodriguez
+
+2
+Table of Contents
+
+Introduction...
+Project Description...
+Enviornment...
+How to use...
+Class Overview...
+
+
+Introduction
+This developer's guide is written so that developers beginning work on this Calculator program can quickly and thoroughly understand the code.  It explains the logic behind key sections of code.  The aim is to ready the reader to work with the code.
+
+This program is a calculator of mathematical expressions.  It can calculate any expression that uses the +, -, *, /, and ^ operators, parentheses, and integers.  It can be used in two ways: with a GUI or the command line.  Both use the same engine to perform the calculations.  The GUI allows the user to enter expressions with the mouse, while the command line allows entering multiple expressions at once.
+
+
+Project Description
+The project is to create a calculator that can perform integer arithmetic using +, -, *, /, ^, and parentheses.  Provided from the offset were the Evaluator, EvaluatorTester, and Project1 classes.  The Evaluator class had a rudimentary implementation of its eval method.  EvaluatorTester was fully implemented, and Project1 implemented everything except the actionPerformed method.
+
+The main task was to rewrite the Evaluator class to be more maintainable and adaptable to future changes.  The other task was to implement Project1's actionPerformed method so that it, too, would be maintainable.
+
+
+Enviornment
+The program was written and tested using a machine equipped with 2GB RAM, AMD Sempron 140 2.7 GHz processor, Linux (32-bit Arch Linux 4.3.3-2) OS, and openJDK 1.8.0_72.  Vim 7.4 was used to develop the program.
+
+
+How to Use
+The command line calculator is run using EvaluatorTester.jar.  Assuming java is in a path in the PATH variable, from the command line, the program can be executed by typing;
+
+    $ java -jar EvaluatorTester.jar [expr1] [expr2] ... [exprN]
+
+Each "expr" denotes a mathematical expression that follows the format explained in the introduction.  Expressions are separated by a space.  There can be an arbitrary number of expressions.  Depending on the terminal the user is using, expressions that contain parentheses may need to be surrounded in quotes.
+
+SCREENSHOTS HERE
+
+To run the GUI calculator, execute the following from the command line:
+
+    $ java -jar Project1.jar
+
+This should open the calculator, whereupon the user can use the mouse to enter the expression.  Two buttons that may not be clear as to what they do are C and CE.  The former deletes the most recently entered character.  The latter deletes the entire expression.
+
+
+Class Overview
+Evaluator.java is the engine of the calculator--it contains all the logic needed to evaluate an expression.  The classes it contains are:'
+    public class Evaluator 
+        This is the public interface of the calculator.
+    private class LeftAssociativeEval implements BiPredicate<Operator, Operator> 
+        Decides when to pop the stack when the current token is  a left associative operator.
+    private class RightAssociativeEval implements BiPredicate<Operator, Operator> 
+        Decides when to pop the stack when the current token is  a right associative operator.
+    private class GroupEval implements BiPredicate<Operator, Operator> 
+        Decides when to pop the stack when the current token is a terminating operator.  A terminating operator is one that marks the end of an expression, such as ), }, ], etc.
+    abstract class Operator 
+        An abstract class for operators.
+    class AdditionOperator extends Operator 
+    class SubtractionOperator extends Operator 
+    class MultiplicationOperator extends Operator 
+    class DivisionOperator extends Operator 
+    class ExponentiationOperator extends Operator 
+    class BegOperator extends Operator 
+        A dummy operator to mark the bottom of the stack.
+    class EndOperator extends Operator 
+        A dummy operator to mark the end of an expression.
+    class OpenParenthesis extends Operator 
+    class CloseParenthesis extends Operator 
+    class Operand
+
+
+Operator
+This abstact class represents an operator.  Each operator has an associativity, a string representation, and a priority.  The associativity determines how a subexpression is calculated.  The priority is the operator's precedence.  A higher priority means that it is executed before operators with a lower priority.  The string representation is what the operator looks like in print.  For example, AdditionOperator would be '+', MulitiplicationOperator would be '*', and so on.
+
+This class contains a static enumeration of associativities called Associativity.  This is used to specify the associativity of an operator.
+
+operatorMap is a HashMap from Strings to Operators.  This is used to prevent the proliferation of identical objects.  For example, the expression 4+4+3 uses the addition operator twice.  Without this map, two instances of AdditionOperator would be created.  To prevent this, the map can be accessed to reuse already instantiated opertors.
+
+The setInPriority and setOutPriority methods are primarily for operators that mark the beginning of an expression ({, (, [, etc.).  The former changes the priority of an operator when it is out of the stack.  The latter does the same for an operator that is in the stack.  These are needed because the priority of an operator that marks the beginning of an expression changes depending on whether or not it is in the stack.  When inserting such an operator, it should be placed at the top of the stack, regardless of the priorities of any operators that come before it.  This ensures that the operators that follow it are evaluated first, which is the desired behavior.  Once in, the operator's priority needs to be lower than all other operators.  This is so that any operators that follow it will be placed on the stack, instead of the alternative behavior of popping all operators until a condition is met.
+
+The operators that are not really operators (EndOperator, BegOperator, OpenParenthesis, and CloseParenthesis) are somewhat troublesome in that calling their execute method makes no sense.  Workarounds include throwing an error for these classes and returning a garbage operand.  Although neither are very attractive solutions, the latter was chosen.  The reason is that most operators will never throw the exception.  This choice would introduce many meaningless throw declarations and try blocks.  The latter choice is cleaner because there is no need to handle exceptions (or have the program unexpectadlly quit).  However, since executing these operators might change the result of the calculation, care must be given to not call their execute method, which the program never does.
+
+
+Evaluator
+This is the class that performs the calculations.  It uses two stacks: opdStack and oprStack.  The first keeps track of the integers in an expression.  The second keeps track of the operators.  To evaluate, two operands are popped from opdStack, and one operator is popped from oprStack.  The operands are passed to the operator's execute method.  The result is then pushed to opdStack.  This behavior is implemented by the popOperator method.  The calculation of the entire expression is complete when the oprStack consists of only the dummy operator, BegOperator.
+
+groupStartStack keeps track of all the operators that mark the start of an expression.  These denote the beginning of the subexpressions.  The top of the stack is the operator that starts the subexpression that is currently being evaluated.  These operators are pushed when they are read, and popped when the matching end operator is read (and consequently, the subexpression calculated).  Using this stack, the priority of the relevant start-of-expression operator can be changed with ease.
+
+groupOprMap is a map from Operators to Operators.  It associates operators that end an expression with those that start one.  Currently, the map looks like this:
+    ) -> (
+    ! -> #
+This map is needed for easily determing the bounds of a subexpression.  For example, if a ")" is read, then this map says that the parenthesis terminates the subexpression starts with "(".  In this way, everything is calculated until match is found.  This is also useful because it allows an easy way to check for unbalanced parentheses.
+
+The eval method is the sole method available to the client.  BegOperator is pushed to the empty oprStack so that no tests for an empty stack are needed.  The stack will be emptied after reading a "!", which is the EndOperator that marks the end of the expression.  The crux of the method is in the while loop's first else clause.  There are three ways to evaluate an expression.  Which method is used depends on the type of the operator that was just read.  The fist method corresponds to an operator that marks the end of an expression.  In this case, everything until the beginning of the expression is evaluated.  Once everything has been evaluated, the operator marking the beginning is popped from oprStack and groupStartStack.  The second and third methods are similar; they correspond to the operator being right and left associative, respectively.  After evaluation using these two methods, the newly read operator is pushed to oprStack.
+
+As mentioned in the first paragraph, popOperator is where the actual calculations are executed.  This is also where the priorities of operators are changed, and where the method of evaluation chosen in the eval method is employed.  So that this method can use any tactic to do the calculations, three classes that implement a common interface were created.  They are LeftAssociativeEval RightAssociativeEval, and GroupEval.  These define the conditions under which to perform a calculation.
+
+
+Conclusion
+This guide has shown how to use the program with the command line and GUI.  It has also explained key concepts of the program that should be fully understood if the reader wishes to work with the code.  The logic behind the implementation has been given, and hopefully worked to familiarize the reader with the code.
+
+The project highlights the importance of developing generic and reusable software.  It shows that creating a project that is robust to changes in the future is difficult, but comes with great merits.  The effort spent today in making code adaptable and resistant to change is worth the ease of maintaining it tomorrow.  Completing a project as quickly as possible without regard to maintainability and readability is a recipie for disaster.
