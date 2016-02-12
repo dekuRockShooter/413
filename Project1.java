@@ -12,8 +12,9 @@ public class Project1 extends JFrame implements ActionListener {
     private Button buttons[] = new Button[20];
     //bText[] array contains text on corresponding buttons
     private static final String bText[] = {"7","8","9","+","4","5","6",
-        "-","1","2","3","*","0",".","=","/","(",")","C","CE"};
+        "-","1","2","3","*","0","^","=","/","(",")","C","CE"};
     private final Evaluator evaluator = new Evaluator();
+    private boolean isAnswerDisplayed = false;
 
     public static void main(String argv[]) {
         Project1 calc = new Project1();
@@ -42,6 +43,10 @@ public class Project1 extends JFrame implements ActionListener {
     public void actionPerformed(ActionEvent arg0) { // You need to fill in this fuction
         Button button = (Button)arg0.getSource();
         String txtContent = this.txField.getText();
+        if (isAnswerDisplayed) {
+            txtContent = "";
+            this.isAnswerDisplayed = false;
+        }
         if (button.getLabel().compareTo("C") == 0) {
             if (txtContent.length() > 0)
                 txtContent = txtContent.substring(0, txtContent.length() - 1);
@@ -51,9 +56,7 @@ public class Project1 extends JFrame implements ActionListener {
         }
         else if (button.getLabel().compareTo("=") == 0) {
             txtContent = Integer.toString(this.evaluator.eval(txtContent));
-        }
-        else if (button.getLabel().compareTo(".") == 0) {
-            return;
+            this.isAnswerDisplayed = true;
         }
         else {
             txtContent = txtContent + button.getLabel();
